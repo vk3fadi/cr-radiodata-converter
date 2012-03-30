@@ -1,9 +1,0 @@
-d:\projects\Compiled\TS2K\TS2K\obj\x86\Debug\ResolveAssemblyReference.cache
-d:\projects\Compiled\TS2K\TS2K\obj\x86\Debug\TS2K.MainWindow.resources
-d:\projects\Compiled\TS2K\TS2K\obj\x86\Debug\TS2K.Properties.Resources.resources
-d:\projects\Compiled\TS2K\TS2K\obj\x86\Debug\GenerateResource.read.1.tlog
-d:\projects\Compiled\TS2K\TS2K\obj\x86\Debug\GenerateResource.write.1.tlog
-d:\projects\Compiled\TS2K\TS2K\bin\Debug\TS2K.exe
-d:\projects\Compiled\TS2K\TS2K\bin\Debug\TS2K.pdb
-d:\projects\Compiled\TS2K\TS2K\obj\x86\Debug\TS2K.exe
-d:\projects\Compiled\TS2K\TS2K\obj\x86\Debug\TS2K.pdb
