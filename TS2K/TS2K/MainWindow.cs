@@ -12,9 +12,11 @@ namespace TS2K
 {
   public partial class MainWindow : Form
   {
+    string Title;
     public MainWindow()
     {
       InitializeComponent();
+      Title = this.Text;
     }
 
     private void loadHMKToolStripMenuItem_Click(object sender, EventArgs e)
@@ -46,12 +48,10 @@ namespace TS2K
 
       foreach (string line in CSVTextBox.Lines)
       {
-        if (line.StartsWith("0") && line[4] == ',')
-        {
-          MemoryChannel mc = new MemoryChannel();
-          mc.LoadCSV(line);
+        MemoryChannel mc = new MemoryChannel();
+        mc.LoadText(line);
+        if (mc.Valid)
           MCPTextBox.AppendText(mc.GetMCPData());
-        }
       }
     }
 
@@ -76,6 +76,59 @@ namespace TS2K
       MCPTextBox.Copy();
       System.Threading.Thread.Sleep(1000);
       UseWaitCursor = false;
+    }
+
+    private void readToolStripMenuItem_Click(object sender, EventArgs e)
+    {
+      listView1.Items.Clear();
+      CSVTextBox.Clear();
+      Radio radio = new Radio();
+      radio.SendCommand("FR0;");
+      string response;
+      radio.Open("COM3");
+        for (int i = 0; i < 10; i++)
+      {
+        this.Text = Title + " - " + i.ToString("000");
+        response = radio.ReadChannelRX(i);
+        if (response.EndsWith("?"))
+          response = radio.ReadChannelRX(i);
+
+        MemoryChannel mc = new MemoryChannel();
+        mc.LoadText(response);
+        if (mc.RxFreqency != 0)
+        {
+          CSVTextBox.AppendText(response + ";\r\n");
+          response = radio.ReadChannelTX(i);
+          mc.LoadText(response);
+          if (mc.TxFreqency != mc.RxFreqency && mc.TxFreqency != 0)
+            CSVTextBox.AppendText(response + ";\r\n");
+          ListAdd(mc);
+        }
+      }
+      radio.Close();
+      this.Text = Title;
+    }
+
+    void ListAdd(MemoryChannel MC)
+    {
+      ListViewItem item=new ListViewItem(MC.Channel.ToString());
+      string format = "#,###,###,###";
+      item.Tag = MC;
+      item.SubItems.Add(MC.MemoryName);
+      item.SubItems.Add(MC.RxFreqency.ToString(format));
+      item.SubItems.Add(MC.TxFreqency.ToString(format));
+      item.SubItems.Add(MC.Mode.ToString());
+      item.SubItems.Add(MC.Lockout.ToString());
+      item.SubItems.Add(MC.ToneMode.ToString());
+      item.SubItems.Add(MC.TxTone.ToString());
+      item.SubItems.Add(MC.RxTone.ToString());
+      item.SubItems.Add(MC.DCSCode.ToString());
+      item.SubItems.Add(MC.Reverse.ToString());
+      item.SubItems.Add(MC.Shift.ToString());
+      item.SubItems.Add(MC.OffsetFreq.ToString(format));
+      item.SubItems.Add(MC.StepSize.ToString());
+      item.SubItems.Add(MC.MemoryGroup.ToString());
+      listView1.Items.Add(item);
     }
   }
 }

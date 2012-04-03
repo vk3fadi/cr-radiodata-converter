@@ -7,6 +7,8 @@ namespace TS2K
 {
   class MemoryChannel
   {
+    public bool Valid = false;
+
     public int Channel;
     public int RxFreqency;
     public Modes Mode;
@@ -15,7 +17,7 @@ namespace TS2K
     public int RxTone;
     public int DCSCode;
     public OnOff Reverse;
-    public Shifts Shift;
+    public ShiftModes Shift;
     public int OffsetFreq;
     public int StepSize;  // always use 0: 5kHz
     public int MemoryGroup;
@@ -25,6 +27,7 @@ namespace TS2K
     public int TxTone;
 
     public double[] PLTones = new double[] {
+      0.0,
       67.0, 71.9, 74.4, 77.0, 79.7, 82.5, 85.4, 88.5, 91.5, 94.8, 
       97.4, 100.0, 103.5, 107.2, 110.9, 114.8, 118.8, 123.0, 127.3, 131.8,
       136.5, 141.3, 146.2, 151.4, 156.7, 162.2, 167.9, 173.8, 179.9, 186.2, 
@@ -46,9 +49,15 @@ namespace TS2K
       return (int)f;
     }
 
-    public ToneModes GetToneMode(string T)
+    public ToneModes GetToneMode(string Tone)
     {
-      switch (T.Trim())
+      if (Tone.Length == 1)
+      {
+        int i = int.Parse(Tone);
+        return (ToneModes)i;
+      }
+
+      switch (Tone.Trim())
       {
         case "Off":
           return ToneModes.OFF;
@@ -68,10 +77,21 @@ namespace TS2K
       return GetMCPData();
     }
 
-    public void LoadCSV(string CSVText)
+    public void LoadText(string Text)
     {
-      string[] parts = CSVText.Split(',');
+      string[] parts = Text.Trim().Split(',');
+      if (Text.StartsWith("MR"))
+      {
+        LoadMCPData(Text);
+      }
+      else if (parts.Length == 15 && GetFrequency(parts[1]) != 0)
+      {
+        LoadCSV(parts);
+      }
+    }
 
+    private void LoadCSV(string[] parts)
+    {
       Channel = GetInt(parts[0]);
       RxFreqency = GetFrequency(parts[1]);
       StepSize = 0;
@@ -80,9 +100,9 @@ namespace TS2K
       TxTone = GetToneNumber(parts[5]);
       RxTone = GetToneNumber(parts[6]);
       DCSCode = GetInt(parts[7]);
-      Shift = GetShiftMode(parts[8], parts[1], parts[12]);
-      Reverse = GetOffOn(parts[9]);
-      Lockout = GetOffOn(parts[10]);
+      Shift = GetShiftMode(parts[8]);
+      Reverse = GetOnOff(parts[9]);
+      Lockout = GetOnOff(parts[10]);
       Mode = GetMode(parts[11]);
       TxFreqency = GetFrequency(parts[12]);
       CalcSplit();
@@ -90,39 +110,63 @@ namespace TS2K
       MemoryName = parts[14];
       if (MemoryName.Length > 8)
         MemoryName = MemoryName.Substring(0, 8);
-      
+
+      MemoryGroup = (int)Channel / 100;
+
+      Valid = true;
     }
 
+    /// <summary>
+    /// Set repeater offsets based on TX Frequency (when it's set.)
+    /// <para>The TS-2000 can only use repeater offsets that are multiples of 50kHz
+    /// So we will calculate those when possible. When it's not possible, we
+    /// will set split mode.</para>
+    /// </summary>
     private void CalcSplit()
     {
-      if (Shift == Shifts.Plus || Shift == Shifts.Minus)
+      // Assume channels with a + or - shift are already valid
+      if (Shift == ShiftModes.Plus || Shift == ShiftModes.Minus)
       {
         TxFreqency = 0;
         return;
       }
 
-      if (TxFreqency == RxFreqency)
-        TxFreqency = 0;
+      // Channels marked as simplex don't need any processing, other than to make sure
+      // we set them that way.
+      if (TxFreqency == RxFreqency || TxFreqency == 0 || Shift == ShiftModes.Simplex)
+      {
+        Shift = ShiftModes.Simplex;
+        if (TxFreqency < 150000000)
+          OffsetFreq = 600000;
+        else if (TxFreqency < 400000000)
+          OffsetFreq = 1600000;
+        else
+          OffsetFreq = 5000000;
+        return;
+      }
+
+      // Determine offset for split channels. Set a standard offset when it's possible
+      // otherwise set split mode
       int offset = TxFreqency - RxFreqency;
       if (offset % 50000 == 0)
       {
         OffsetFreq = Math.Abs(offset);
         TxFreqency = 0;
-        if (offset == 0)
-          Shift = Shifts.Simplex;
-        else if (offset < 0)
-          Shift = Shifts.Minus;
+        if (offset < 0)
+          Shift = ShiftModes.Minus;
         else if (offset > 0)
-          Shift = Shifts.Plus;
-      }
-      else
-      {
-        Shift = Shifts.Simplex;
+          Shift = ShiftModes.Plus;
       }
     }
 
     private Modes GetMode(string p)
     {
+      if (p.Length == 1)
+      {
+        int i = int.Parse(p);
+        return (Modes)i;
+      }
+
       switch (p)
       {
         case "FM":
@@ -134,10 +178,14 @@ namespace TS2K
       }
     }
 
-    private OnOff GetOffOn(string p)
+    private OnOff GetOnOff(string p)
     {
       switch (p)
       {
+        case "0":
+          return OnOff.Off;
+        case "1":
+          return OnOff.On;
         case "On":
           return OnOff.On;
         default:
@@ -145,26 +193,34 @@ namespace TS2K
       }
     }
 
-    private Shifts GetShiftMode(string p, string TXFreq, string RXFreq)
+    private ShiftModes GetShiftMode(string p)
     {
+      if (p.Length == 1)
+      {
+        int i = int.Parse(p);
+        return (ShiftModes)i;
+      }
+
       switch (p)
       {
         case "-":
-          return Shifts.Minus;
+          return ShiftModes.Minus;
         case "+":
-          return Shifts.Plus;
+          return ShiftModes.Plus;
+        case "S":
+          return ShiftModes.Split;
         default:
-          return Shifts.Simplex;
+          return ShiftModes.Simplex;
       }
     }
 
     private int GetToneNumber(string p)
     {
-      double d = 0;
-      double.TryParse(p, out d);
+      double toneFreq = 0;
+      double.TryParse(p, out toneFreq);
       for (int i = 0; i < PLTones.Length; i++)
       {
-        if (d == PLTones[i])
+        if (toneFreq == PLTones[i])
           return i;
       }
       return 0;
@@ -175,8 +231,26 @@ namespace TS2K
       return "";
     }
 
-    public void LoadMData(string MDataText)
+    public void LoadMCPData(string Text)
     {
+      Channel = int.Parse(Text.Substring(3, 3));
+      if (Text[2] == '0')  // receive channel
+        RxFreqency = int.Parse(Text.Substring(6, 11));
+      else if (Text[2] == '1') // transmit channel
+        TxFreqency = int.Parse(Text.Substring(6, 11));
+      Mode = GetMode(Text.Substring(17, 1));
+      Lockout = GetOnOff(Text.Substring(18, 1));
+      ToneMode = GetToneMode(Text.Substring(19, 1));
+      RxTone = int.Parse(Text.Substring(20, 2));
+      TxTone = int.Parse(Text.Substring(22, 2));
+      DCSCode = int.Parse(Text.Substring(24, 3));
+      Reverse = GetOnOff(Text.Substring(27, 1));
+      Shift = GetShiftMode(Text.Substring(28, 1));
+      OffsetFreq = int.Parse(Text.Substring(29, 9));
+      StepSize = int.Parse(Text.Substring(38, 2));
+      MemoryGroup = int.Parse(Text.Substring(40, 1));
+      MemoryName = Text.Substring(41).TrimEnd(';');
+      Valid = true;
     }
 
     public string GetMCPData()
@@ -193,8 +267,9 @@ namespace TS2K
       s.Append(DCSCode.ToString("000"));
       s.Append(((int)Reverse).ToString("0"));
       s.Append(((int)Shift).ToString("0"));
-      s.Append(OffsetFreq.ToString("00000000000"));
-      s.Append(((int)StepSize).ToString("0"));
+      s.Append(OffsetFreq.ToString("000000000"));
+      s.Append(((int)StepSize).ToString("00"));
+      s.Append(((int)MemoryGroup).ToString("0"));
       s.Append(MemoryName);
       s.AppendLine();
 
@@ -211,8 +286,9 @@ namespace TS2K
         s.Append(DCSCode.ToString("000"));
         s.Append(((int)Reverse).ToString("0"));
         s.Append(((int)Shift).ToString("0"));
-        s.Append(OffsetFreq.ToString("00000000000"));
-        s.Append(((int)StepSize).ToString("0"));
+        s.Append(OffsetFreq.ToString("000000000"));
+        s.Append(((int)StepSize).ToString("00"));
+        s.Append(((int)MemoryGroup).ToString("0"));
         s.Append(MemoryName);
         s.AppendLine();
       }

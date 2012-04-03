@@ -57,8 +57,9 @@
     <Compile Include="Modes.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Radio.cs" />
     <Compile Include="RXTXMode.cs" />
-    <Compile Include="Shifts.cs" />
+    <Compile Include="ShiftModes.cs" />
     <Compile Include="Tones.cs" />
     <EmbeddedResource Include="MainWindow.resx">
       <DependentUpon>MainWindow.cs</DependentUpon>
